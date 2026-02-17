@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Insights — Fala Gaiotto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#161b22',
+                            darker: '#0d1117',
+                            accent: '#ff6347',
+                            muted: '#9595ad',
+                            green1: '#0e4429',
+                            green2: '#006d32',
+                            green3: '#26a641',
+                            green4: '#39d353',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'Courier', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Courier New', Courier, monospace; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #9595ad33; border-radius: 3px; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .pulse-dot { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .table-container { max-height: 400px; overflow: auto; }
+        .table-container table { border-collapse: collapse; width: 100%; }
+        .table-container th { position: sticky; top: 0; z-index: 1; }
+    </style>
+</head>
+<body class="bg-brand-darker text-brand-muted min-h-screen">
+
+<!-- Header -->
+<header class="bg-brand-dark border-b border-gray-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <h1 class="text-xl sm:text-2xl font-bold tracking-tight">
+                <span class="text-brand-muted">DATA</span><span class="text-brand-accent">INSIGHTS</span>
+            </h1>
+            <span class="hidden sm:inline text-xs text-gray-600 border-l border-gray-700 pl-3">by Fala Gaiotto</span>
+        </div>
+        <nav class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm">
+            <button onclick="showTab('query')" id="tab-query" class="tab-btn text-brand-accent">Consultar</button>
+            <button onclick="showTab('tables')" id="tab-tables" class="tab-btn">Tabelas</button>
+            <button onclick="showTab('config')" id="tab-config" class="tab-btn">Configurar</button>
+            <button onclick="showTab('api')" id="tab-api" class="tab-btn">API</button>
+        </nav>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+
+<!-- ===================== QUERY TAB ===================== -->
+<section id="panel-query" class="tab-panel">
+    <!-- Analysis type selector + suggestions -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+        <div class="flex-1">
+            <label class="text-xs text-gray-500 mb-1 block">Tipo de Análise</label>
+            <select id="analysisType" class="w-full bg-brand-dark border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none">
+                <option value="">Carregando...</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Suggestions -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <span class="text-xs text-gray-600">Exemplos:</span>
+        <button onclick="useSuggestion(this)" class="text-xs bg-brand-dark border border-gray-800 rounded-full px-3 py-1 hover:border-brand-accent transition">Quais tabelas existem?</button>
+        <button onclick="useSuggestion(this)" class="text-xs bg-brand-dark border border-gray-800 rounded-full px-3 py-1 hover:border-brand-accent transition">Mostre os 10 primeiros registros</button>
+        <button onclick="useSuggestion(this)" class="text-xs bg-brand-dark border border-gray-800 rounded-full px-3 py-1 hover:border-brand-accent transition">Qual o total por categoria?</button>
+        <button onclick="useSuggestion(this)" class="text-xs bg-brand-dark border border-gray-800 rounded-full px-3 py-1 hover:border-brand-accent transition">Quais são os padrões dos dados?</button>
+    </div>
+
+    <!-- Chat area -->
+    <div id="chatArea" class="bg-brand-dark rounded-lg border border-gray-800 min-h-[300px] max-h-[60vh] overflow-y-auto p-4 mb-4 scrollbar-thin space-y-4">
+        <div class="text-center text-gray-600 text-sm py-12">
+            <div class="text-4xl mb-3">📊</div>
+            <p>Faça uma pergunta sobre seus dados em linguagem natural.</p>
+            <p class="text-xs mt-1">Primeiro, importe um Excel ou trabalhe com tabelas existentes.</p>
+        </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="flex gap-2">
+        <input id="queryInput" type="text" placeholder="Digite sua pergunta aqui..."
+               class="flex-1 bg-brand-dark border border-gray-700 rounded-lg px-4 py-3 text-sm focus:border-brand-accent focus:outline-none"
+               onkeydown="if(event.key==='Enter')sendQuery()">
+        <button onclick="sendQuery()" id="btnSend"
+                class="bg-brand-accent hover:bg-red-500 text-white px-6 py-3 rounded-lg text-sm font-bold transition">
+            Enviar
+        </button>
+    </div>
+</section>
+
+<!-- ===================== TABLES TAB ===================== -->
+<section id="panel-tables" class="tab-panel hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Upload panel -->
+        <div class="lg:col-span-1">
+            <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+                <h2 class="text-sm font-bold text-brand-accent mb-3">Upload Excel</h2>
+                <div id="dropZone"
+                     class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer hover:border-brand-accent transition"
+                     onclick="document.getElementById('fileInput').click()"
+                     ondragover="event.preventDefault(); this.classList.add('border-brand-accent')"
+                     ondragleave="this.classList.remove('border-brand-accent')"
+                     ondrop="handleDrop(event)">
+                    <div class="text-3xl mb-2">📁</div>
+                    <p class="text-xs text-gray-500">Arraste um arquivo .xlsx ou clique para selecionar</p>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden" onchange="uploadFile(this.files[0])">
+                </div>
+                <div id="uploadStatus" class="mt-3 text-xs hidden"></div>
+            </div>
+        </div>
+
+        <!-- Tables list -->
+        <div class="lg:col-span-2">
+            <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-bold text-brand-accent">Tabelas no Banco</h2>
+                    <button onclick="loadTables()" class="text-xs text-gray-500 hover:text-brand-accent transition">↻ Atualizar</button>
+                </div>
+                <div id="tablesList" class="space-y-2">
+                    <p class="text-xs text-gray-600">Carregando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table preview -->
+    <div id="tablePreview" class="mt-6 hidden">
+        <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-bold text-brand-accent" id="previewTitle">Preview</h2>
+                <button onclick="document.getElementById('tablePreview').classList.add('hidden')" class="text-xs text-gray-500 hover:text-red-400">✕ Fechar</button>
+            </div>
+            <div id="previewContent" class="table-container"></div>
+        </div>
+    </div>
+</section>
+
+<!-- ===================== CONFIG TAB ===================== -->
+<section id="panel-config" class="tab-panel hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- List -->
+        <div class="lg:col-span-1">
+            <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-bold text-brand-accent">Tipos de Análise</h2>
+                    <button onclick="newAnalysisType()" class="text-xs bg-brand-green2 text-white px-2 py-1 rounded hover:bg-brand-green3 transition">+ Novo</button>
+                </div>
+                <div id="analysisTypesList" class="space-y-2">
+                    <p class="text-xs text-gray-600">Carregando...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="lg:col-span-2">
+            <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+                <h2 class="text-sm font-bold text-brand-accent mb-4" id="editorTitle">Selecione um tipo de análise</h2>
+                <form id="analysisForm" class="space-y-4 hidden">
+                    <input type="hidden" id="editId">
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">Nome</label>
+                        <input id="editName" class="w-full bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">System Prompt</label>
+                        <textarea id="editPrompt" rows="5" class="w-full bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none resize-y"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">Guardrails de Entrada</label>
+                        <textarea id="editGuardIn" rows="3" class="w-full bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none resize-y"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">Guardrails de Saída</label>
+                        <textarea id="editGuardOut" rows="3" class="w-full bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none resize-y"></textarea>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="saveAnalysisType()" class="bg-brand-accent hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-bold transition">Salvar</button>
+                        <button type="button" onclick="deleteAnalysisType()" id="btnDelete" class="bg-gray-800 hover:bg-red-900 text-gray-400 px-4 py-2 rounded text-sm transition hidden">Excluir</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===================== API TAB ===================== -->
+<section id="panel-api" class="tab-panel hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- API Keys -->
+        <div>
+            <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+                <h2 class="text-sm font-bold text-brand-accent mb-3">Chaves de API</h2>
+                <div class="flex gap-2 mb-4">
+                    <input id="keyLabel" type="text" placeholder="Label da chave" class="flex-1 bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none">
+                    <button onclick="createApiKey()" class="bg-brand-green2 text-white px-3 py-2 rounded text-sm hover:bg-brand-green3 transition">Gerar</button>
+                </div>
+                <div id="keyResult" class="hidden mb-4 bg-brand-darker border border-brand-green3 rounded p-3">
+                    <p class="text-xs text-brand-green4 mb-1">Chave gerada (copie agora, não será exibida novamente):</p>
+                    <code id="keyValue" class="text-xs text-white break-all"></code>
+                </div>
+                <div id="keysList" class="space-y-2">
+                    <p class="text-xs text-gray-600">Carregando...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Docs -->
+        <div>
+            <div class="bg-brand-dark border border-gray-800 rounded-lg p-5">
+                <h2 class="text-sm font-bold text-brand-accent mb-3">Documentação da API</h2>
+                <div class="space-y-4 text-xs">
+                    <div>
+                        <h3 class="text-brand-green4 font-bold mb-1">POST /api/v1/query</h3>
+                        <p class="text-gray-500 mb-2">Consultar dados via linguagem natural (autenticado)</p>
+                        <pre class="bg-brand-darker rounded p-3 overflow-x-auto text-gray-400">
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: SUA_CHAVE_AQUI" \
+  -d '{"question": "Quais tabelas existem?"}'</pre>
+                    </div>
+                    <div>
+                        <h3 class="text-brand-green4 font-bold mb-1">Headers obrigatórios</h3>
+                        <p class="text-gray-500"><code class="text-brand-accent">X-API-Key</code> — Chave de API gerada nesta tela</p>
+                    </div>
+                    <div>
+                        <h3 class="text-brand-green4 font-bold mb-1">Segurança</h3>
+                        <p class="text-gray-500">As chaves são armazenadas com hash SHA256 + salt. O valor original não é salvo.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+</main>
+
+<!-- Email Modal -->
+<div id="emailModal" class="fixed inset-0 bg-black/70 z-50 hidden items-center justify-center">
+    <div class="bg-brand-dark border border-gray-700 rounded-lg p-6 w-full max-w-md mx-4 fade-in">
+        <h3 class="text-sm font-bold text-brand-accent mb-4">Enviar por Email (Outlook)</h3>
+        <div class="space-y-3">
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">Destinatário</label>
+                <input id="emailTo" type="email" class="w-full bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none">
+            </div>
+            <div>
+                <label class="text-xs text-gray-500 block mb-1">Assunto</label>
+                <input id="emailSubject" type="text" class="w-full bg-brand-darker border border-gray-700 rounded px-3 py-2 text-sm focus:border-brand-accent focus:outline-none">
+            </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button onclick="confirmSendEmail()" class="bg-brand-accent hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-bold transition">Enviar</button>
+            <button onclick="closeEmailModal()" class="bg-gray-800 text-gray-400 px-4 py-2 rounded text-sm transition">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="border-t border-gray-800 mt-12 py-4 text-center text-xs text-gray-700">
+    <span class="text-brand-muted">DATA</span><span class="text-brand-accent">INSIGHTS</span>
+    <span class="mx-2">·</span> by <a href="https://www.falagaiotto.com.br" target="_blank" class="text-brand-accent hover:underline">Fala Gaiotto</a>
+</footer>
+
+<script>
+// ============================
+// State
+// ============================
+let conversationContext = '';
+let lastQueryData = null;
+let lastQuestion = '';
+
+// ============================
+// Tabs
+// ============================
+function showTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-brand-accent'); b.classList.add('text-brand-muted'); });
+    document.getElementById('panel-' + name).classList.remove('hidden');
+    document.getElementById('tab-' + name).classList.remove('text-brand-muted');
+    document.getElementById('tab-' + name).classList.add('text-brand-accent');
+
+    if (name === 'tables') loadTables();
+    if (name === 'config') loadAnalysisTypes();
+    if (name === 'api') loadApiKeys();
+}
+
+// ============================
+// Query
+// ============================
+function useSuggestion(btn) {
+    document.getElementById('queryInput').value = btn.textContent;
+    sendQuery();
+}
+
+async function sendQuery() {
+    const input = document.getElementById('queryInput');
+    const q = input.value.trim();
+    if (!q) return;
+
+    input.value = '';
+    lastQuestion = q;
+    const analysisTypeId = document.getElementById('analysisType').value || null;
+
+    appendMessage('user', q);
+    appendMessage('loading', '');
+
+    try {
+        const res = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question: q,
+                analysis_type_id: analysisTypeId ? parseInt(analysisTypeId) : null,
+                conversation_context: conversationContext || null,
+            }),
+        });
+        const data = await res.json();
+        removeLoading();
+
+        if (data.detail) {
+            appendMessage('error', data.detail);
+            return;
+        }
+
+        lastQueryData = data.data;
+        conversationContext = (conversationContext + '\n' + q + '\n' + (data.explanation || '')).slice(-2000);
+
+        let html = '';
+        if (data.sql_generated) {
+            html += `<details class="mb-2"><summary class="text-xs text-gray-600 cursor-pointer hover:text-brand-accent">SQL Gerado</summary><pre class="mt-1 bg-brand-darker rounded p-2 text-xs text-brand-green4 overflow-x-auto">${escapeHtml(data.sql_generated)}</pre></details>`;
+        }
+        if (data.explanation) {
+            html += `<div class="prose-sm">${marked.parse(data.explanation)}</div>`;
+        }
+        if (data.data && data.data.rows && data.data.rows.length > 0) {
+            html += renderTable(data.data);
+            html += renderActions();
+        }
+
+        appendMessage('assistant', html, true);
+    } catch (e) {
+        removeLoading();
+        appendMessage('error', 'Erro de conexão: ' + e.message);
+    }
+}
+
+function renderTable(data) {
+    if (!data.columns || !data.rows) return '';
+    let h = '<div class="table-container mt-3 rounded border border-gray-800"><table>';
+    h += '<thead><tr>';
+    data.columns.forEach(c => { h += `<th class="bg-brand-darker text-brand-accent text-xs px-3 py-2 text-left border-b border-gray-800">${escapeHtml(c)}</th>`; });
+    h += '</tr></thead><tbody>';
+    data.rows.forEach((row, i) => {
+        h += `<tr class="${i % 2 === 0 ? 'bg-brand-dark' : 'bg-brand-darker'}">`;
+        data.columns.forEach(c => { h += `<td class="text-xs px-3 py-1.5 border-b border-gray-800/50">${escapeHtml(String(row[c] ?? ''))}</td>`; });
+        h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+    h += `<p class="text-xs text-gray-600 mt-1">${data.rows.length} registro(s)</p>`;
+    return h;
+}
+
+function renderActions() {
+    return `
+        <div class="flex gap-2 mt-3">
+            <button onclick="exportExcel()" class="text-xs bg-brand-green2 text-white px-3 py-1.5 rounded hover:bg-brand-green3 transition">📥 Exportar Excel</button>
+            <button onclick="openEmailModal()" class="text-xs bg-blue-800 text-white px-3 py-1.5 rounded hover:bg-blue-700 transition">📧 Enviar Email</button>
+        </div>`;
+}
+
+function appendMessage(role, content, isHtml = false) {
+    const chat = document.getElementById('chatArea');
+    // Clear placeholder
+    if (chat.querySelector('.text-center')) chat.innerHTML = '';
+
+    const div = document.createElement('div');
+    div.className = 'fade-in';
+
+    if (role === 'user') {
+        div.innerHTML = `<div class="flex justify-end"><div class="bg-brand-accent/20 border border-brand-accent/30 rounded-lg px-4 py-2 max-w-[80%] text-sm">${escapeHtml(content)}</div></div>`;
+    } else if (role === 'loading') {
+        div.id = 'loadingMsg';
+        div.innerHTML = `<div class="flex items-center gap-2 text-xs text-gray-500"><span class="pulse-dot inline-block w-2 h-2 rounded-full bg-brand-accent"></span> Analisando...</div>`;
+    } else if (role === 'error') {
+        div.innerHTML = `<div class="bg-red-900/20 border border-red-800 rounded-lg px-4 py-2 text-sm text-red-400">${escapeHtml(content)}</div>`;
+    } else {
+        div.innerHTML = `<div class="bg-brand-dark border border-gray-800 rounded-lg px-4 py-3 text-sm max-w-full overflow-hidden">${isHtml ? content : escapeHtml(content)}</div>`;
+    }
+
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function removeLoading() {
+    const el = document.getElementById('loadingMsg');
+    if (el) el.remove();
+}
+
+// ============================
+// Excel Export
+// ============================
+async function exportExcel() {
+    if (!lastQueryData) return;
+    try {
+        const res = await fetch('/api/export/excel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(lastQueryData),
+        });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'data_insights_export.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        alert('Erro ao exportar: ' + e.message);
+    }
+}
+
+// ============================
+// Email
+// ============================
+function openEmailModal() {
+    document.getElementById('emailSubject').value = lastQuestion || 'Data Insights - Resultado';
+    document.getElementById('emailModal').classList.remove('hidden');
+    document.getElementById('emailModal').classList.add('flex');
+}
+
+function closeEmailModal() {
+    document.getElementById('emailModal').classList.add('hidden');
+    document.getElementById('emailModal').classList.remove('flex');
+}
+
+async function confirmSendEmail() {
+    const to = document.getElementById('emailTo').value.trim();
+    const subject = document.getElementById('emailSubject').value.trim();
+    if (!to) { alert('Informe o email do destinatário.'); return; }
+
+    try {
+        const res = await fetch('/api/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                to_email: to,
+                subject: subject,
+                body_html: `<p>${conversationContext.replace(/\n/g, '<br>')}</p>`,
+                excel_data: lastQueryData,
+            }),
+        });
+        const data = await res.json();
+        closeEmailModal();
+        if (data.error) {
+            appendMessage('error', data.error);
+        } else {
+            appendMessage('assistant', `✅ ${data.message}`);
+        }
+    } catch (e) {
+        alert('Erro ao enviar email: ' + e.message);
+    }
+}
+
+// ============================
+// Tables
+// ============================
+async function loadTables() {
+    const el = document.getElementById('tablesList');
+    try {
+        const res = await fetch('/api/tables');
+        const tables = await res.json();
+        if (!tables.length) {
+            el.innerHTML = '<p class="text-xs text-gray-600">Nenhuma tabela encontrada. Faça upload de um Excel.</p>';
+            return;
+        }
+        el.innerHTML = tables.map(t => `
+            <div class="flex items-center justify-between bg-brand-darker rounded px-3 py-2 border border-gray-800 hover:border-gray-700 transition cursor-pointer" onclick="previewTable('${t.name}')">
+                <div>
+                    <span class="text-sm text-brand-green4 font-bold">${escapeHtml(t.name)}</span>
+                    <span class="text-xs text-gray-600 ml-2">${t.row_count} registros · ${t.columns.length} colunas</span>
+                </div>
+                <span class="text-xs text-gray-700">→</span>
+            </div>
+        `).join('');
+    } catch (e) {
+        el.innerHTML = `<p class="text-xs text-red-400">Erro: ${e.message}</p>`;
+    }
+}
+
+async function previewTable(name) {
+    const panel = document.getElementById('tablePreview');
+    const content = document.getElementById('previewContent');
+    document.getElementById('previewTitle').textContent = `Preview: ${name}`;
+    panel.classList.remove('hidden');
+    content.innerHTML = '<p class="text-xs text-gray-500">Carregando...</p>';
+
+    try {
+        const res = await fetch(`/api/tables/${encodeURIComponent(name)}/preview`);
+        const data = await res.json();
+        content.innerHTML = renderTable(data);
+    } catch (e) {
+        content.innerHTML = `<p class="text-xs text-red-400">Erro: ${e.message}</p>`;
+    }
+}
+
+// ============================
+// Upload
+// ============================
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-brand-accent');
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+}
+
+async function uploadFile(file) {
+    if (!file) return;
+    const status = document.getElementById('uploadStatus');
+    status.classList.remove('hidden');
+    status.className = 'mt-3 text-xs text-brand-green4';
+    status.textContent = `Enviando ${file.name}...`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.detail) {
+            status.className = 'mt-3 text-xs text-red-400';
+            status.textContent = data.detail;
+            return;
+        }
+
+        let html = `<span class="text-brand-green4 font-bold">${file.name}</span> processado:<br>`;
+        data.sheets.forEach(s => {
+            const icon = s.action === 'created' ? '🆕' : s.action === 'appended' ? '➕' : '⏭️';
+            html += `${icon} <strong>${s.sheet}</strong> → ${s.table || 'ignorada'} (${s.action}, ${s.rows} linhas)<br>`;
+        });
+        status.innerHTML = html;
+        status.className = 'mt-3 text-xs text-brand-muted';
+        loadTables();
+        loadAnalysisTypeSelector();
+    } catch (e) {
+        status.className = 'mt-3 text-xs text-red-400';
+        status.textContent = 'Erro: ' + e.message;
+    }
+}
+
+// ============================
+// Analysis Types (Config)
+// ============================
+async function loadAnalysisTypes() {
+    const el = document.getElementById('analysisTypesList');
+    try {
+        const res = await fetch('/api/analysis-types');
+        const types = await res.json();
+        if (!types.length) {
+            el.innerHTML = '<p class="text-xs text-gray-600">Nenhum tipo cadastrado.</p>';
+            return;
+        }
+        el.innerHTML = types.map(t => `
+            <div class="bg-brand-darker rounded px-3 py-2 border border-gray-800 hover:border-gray-700 transition cursor-pointer" onclick="editAnalysisType(${t.id})">
+                <span class="text-sm text-brand-green4">${escapeHtml(t.name)}</span>
+            </div>
+        `).join('');
+    } catch (e) {
+        el.innerHTML = `<p class="text-xs text-red-400">Erro: ${e.message}</p>`;
+    }
+}
+
+async function loadAnalysisTypeSelector() {
+    const sel = document.getElementById('analysisType');
+    try {
+        const res = await fetch('/api/analysis-types');
+        const types = await res.json();
+        sel.innerHTML = '<option value="">— Selecione o Tipo de Análise —</option>' +
+            types.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+    } catch (e) {
+        sel.innerHTML = '<option value="">Erro ao carregar tipos</option>';
+    }
+}
+
+function newAnalysisType() {
+    document.getElementById('editorTitle').textContent = 'Novo Tipo de Análise';
+    document.getElementById('analysisForm').classList.remove('hidden');
+    document.getElementById('editId').value = '';
+    document.getElementById('editName').value = '';
+    document.getElementById('editPrompt').value = '';
+    document.getElementById('editGuardIn').value = '';
+    document.getElementById('editGuardOut').value = '';
+    document.getElementById('btnDelete').classList.add('hidden');
+}
+
+async function editAnalysisType(id) {
+    try {
+        const res = await fetch(`/api/analysis-types/${id}`);
+        const t = await res.json();
+        document.getElementById('editorTitle').textContent = 'Editar: ' + t.name;
+        document.getElementById('analysisForm').classList.remove('hidden');
+        document.getElementById('editId').value = t.id;
+        document.getElementById('editName').value = t.name;
+        document.getElementById('editPrompt').value = t.system_prompt;
+        document.getElementById('editGuardIn').value = t.guardrails_input;
+        document.getElementById('editGuardOut').value = t.guardrails_output;
+        document.getElementById('btnDelete').classList.remove('hidden');
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+}
+
+async function saveAnalysisType() {
+    const id = document.getElementById('editId').value;
+    const payload = {
+        name: document.getElementById('editName').value,
+        system_prompt: document.getElementById('editPrompt').value,
+        guardrails_input: document.getElementById('editGuardIn').value,
+        guardrails_output: document.getElementById('editGuardOut').value,
+    };
+
+    const url = id ? `/api/analysis-types/${id}` : '/api/analysis-types';
+    const method = id ? 'PUT' : 'POST';
+
+    try {
+        await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        loadAnalysisTypes();
+        loadAnalysisTypeSelector();
+        alert('Salvo com sucesso!');
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+}
+
+async function deleteAnalysisType() {
+    const id = document.getElementById('editId').value;
+    if (!id || !confirm('Excluir este tipo de análise?')) return;
+
+    try {
+        await fetch(`/api/analysis-types/${id}`, { method: 'DELETE' });
+        document.getElementById('analysisForm').classList.add('hidden');
+        loadAnalysisTypes();
+        loadAnalysisTypeSelector();
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+}
+
+// ============================
+// API Keys
+// ============================
+async function loadApiKeys() {
+    const el = document.getElementById('keysList');
+    try {
+        const res = await fetch('/api/keys');
+        const keys = await res.json();
+        if (!keys.length) {
+            el.innerHTML = '<p class="text-xs text-gray-600">Nenhuma chave gerada.</p>';
+            return;
+        }
+        el.innerHTML = keys.map(k => `
+            <div class="flex items-center justify-between bg-brand-darker rounded px-3 py-2 border border-gray-800">
+                <div>
+                    <span class="text-sm text-brand-muted">${escapeHtml(k.label)}</span>
+                    <span class="text-xs text-gray-600 ml-2">${k.created_at}</span>
+                </div>
+                <span class="text-xs ${k.is_active ? 'text-brand-green4' : 'text-red-400'}">${k.is_active ? 'Ativa' : 'Inativa'}</span>
+            </div>
+        `).join('');
+    } catch (e) {
+        el.innerHTML = `<p class="text-xs text-red-400">Erro: ${e.message}</p>`;
+    }
+}
+
+async function createApiKey() {
+    const label = document.getElementById('keyLabel').value.trim();
+    if (!label) { alert('Informe um label.'); return; }
+
+    try {
+        const res = await fetch('/api/keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label }),
+        });
+        const data = await res.json();
+        document.getElementById('keyResult').classList.remove('hidden');
+        document.getElementById('keyValue').textContent = data.key;
+        document.getElementById('keyLabel').value = '';
+        loadApiKeys();
+    } catch (e) {
+        alert('Erro: ' + e.message);
+    }
+}
+
+// ============================
+// Utils
+// ============================
+function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+// ============================
+// Init
+// ============================
+document.addEventListener('DOMContentLoaded', () => {
+    loadAnalysisTypeSelector();
+});
+</script>
+</body>
+</html>
